@@ -11,6 +11,7 @@
         <Description>This library includes a set of helper classes and extension methods that work with Entity Framework. It facilitates dynamic querying, filtering, sorting, and paging. It also provides basic entity management and repository patterns.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/sametkarademir/sh-entity-framework</RepositoryUrl>
+        <PackageReadmeFile>readme.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
@@ -21,7 +22,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="readme.md" Pack="true" PackagePath="\"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <Folder Include="Aggregates\"/>
+        <Folder Include="bin\Release\" />
     </ItemGroup>
 
 </Project>
