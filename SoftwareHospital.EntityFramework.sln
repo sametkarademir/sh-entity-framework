@@ -4,6 +4,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{534F7B89-5BC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoftwareHospital.EntityFramework", "src\SoftwareHospital.EntityFramework\SoftwareHospital.EntityFramework.csproj", "{850C087D-EB4E-4151-8DF9-AC5022AF2DD1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoftwareHospital.EntityFramework.Core", "src\SoftwareHospital.EntityFramework.Core\SoftwareHospital.EntityFramework.Core.csproj", "{98B4C206-8C79-40FA-8AE2-DE06BD4C03F2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -11,11 +13,16 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{850C087D-EB4E-4151-8DF9-AC5022AF2DD1} = {534F7B89-5BCE-4E5A-AF85-40A91E04F886}
+		{98B4C206-8C79-40FA-8AE2-DE06BD4C03F2} = {534F7B89-5BCE-4E5A-AF85-40A91E04F886}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{850C087D-EB4E-4151-8DF9-AC5022AF2DD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{850C087D-EB4E-4151-8DF9-AC5022AF2DD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{850C087D-EB4E-4151-8DF9-AC5022AF2DD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{850C087D-EB4E-4151-8DF9-AC5022AF2DD1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{98B4C206-8C79-40FA-8AE2-DE06BD4C03F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98B4C206-8C79-40FA-8AE2-DE06BD4C03F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98B4C206-8C79-40FA-8AE2-DE06BD4C03F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98B4C206-8C79-40FA-8AE2-DE06BD4C03F2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

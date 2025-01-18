@@ -1,4 +1,4 @@
-using SoftwareHospital.EntityFramework.Aggregates.Entities;
+using SoftwareHospital.EntityFramework.Core.Aggregates.Entities;
 
 namespace SoftwareHospital.EntityFramework.Repositories.Interface;
 

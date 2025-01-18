@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
-using SoftwareHospital.EntityFramework.Aggregates.Entities;
+using SoftwareHospital.EntityFramework.Core.Aggregates.Entities;
 using SoftwareHospital.EntityFramework.Extensions;
 using SoftwareHospital.EntityFramework.Models;
 using SoftwareHospital.EntityFramework.Repositories.Interface;

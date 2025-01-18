@@ -1,7 +1,7 @@
 using System.Collections;
 using Microsoft.EntityFrameworkCore;
-using SoftwareHospital.EntityFramework.Aggregates.Entities;
-using SoftwareHospital.EntityFramework.Aggregates.FullAuditedAggregateRoots;
+using SoftwareHospital.EntityFramework.Core.Aggregates.Entities;
+using SoftwareHospital.EntityFramework.Core.Aggregates.FullAuditedAggregateRoots;
 using SoftwareHospital.EntityFramework.Repositories.Interface;
 
 namespace SoftwareHospital.EntityFramework.Repositories.Concrete;
