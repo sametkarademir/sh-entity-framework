@@ -1,15 +1,16 @@
 using System.Linq.Expressions;
-using System.Reflection;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using SoftwareHospital.EntityFramework.Aggregates.AggregateRoots;
-using SoftwareHospital.EntityFramework.Aggregates.AuditedAggregateRoots;
-using SoftwareHospital.EntityFramework.Aggregates.BasicAggregateRoots;
-using SoftwareHospital.EntityFramework.Aggregates.CreationAuditedAggregateRoots;
-using SoftwareHospital.EntityFramework.Aggregates.Entities;
-using SoftwareHospital.EntityFramework.Aggregates.FullAuditedAggregateRoots;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.Options;
+using SoftwareHospital.EntityFramework.Core.Aggregates.AggregateRoots;
+using SoftwareHospital.EntityFramework.Core.Aggregates.AuditedAggregateRoots;
+using SoftwareHospital.EntityFramework.Core.Aggregates.CreationAuditedAggregateRoots;
+using SoftwareHospital.EntityFramework.Core.Aggregates.Entities;
+using SoftwareHospital.EntityFramework.Core.Aggregates.FullAuditedAggregateRoots;
+using SoftwareHospital.EntityFramework.Enums;
+using SoftwareHospital.EntityFramework.Extensions;
+using SoftwareHospital.EntityFramework.Models;
 
 namespace SoftwareHospital.EntityFramework.Contexts;
 
@@ -17,11 +18,13 @@ public abstract class BaseDbContext : DbContext
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IEventDispatcher _eventDispatcher;
+    private readonly EntityFrameworkSettings _settings;
 
-    protected BaseDbContext(DbContextOptions options, IHttpContextAccessor httpContextAccessor, IEventDispatcher eventDispatcher) : base(options)
+    protected BaseDbContext(DbContextOptions options, IHttpContextAccessor httpContextAccessor, IEventDispatcher eventDispatcher, IOptions<EntityFrameworkSettings> settings) : base(options)
     {
         _httpContextAccessor = httpContextAccessor;
         _eventDispatcher = eventDispatcher;
+        _settings = settings.Value;
     }
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -30,6 +33,21 @@ public abstract class BaseDbContext : DbContext
 
         foreach (var entityType in builder.Model.GetEntityTypes())
         {
+            var entityClrType = entityType.ClrType;
+            var entityInterfaces = entityClrType.GetInterfaces();
+            var isIEntity = entityInterfaces.Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEntity<>));
+
+            if (isIEntity)
+            {
+                var idProperty = entityClrType.GetProperty("Id");
+                if (idProperty != null)
+                {
+                    builder.Entity(entityClrType)
+                        .Property(idProperty.Name)
+                        .ValueGeneratedOnAdd();
+                }
+            }
+            
             if (typeof(ISoftDelete).IsAssignableFrom(entityType.ClrType))
             {
                 var parameter = Expression.Parameter(entityType.ClrType, "entity");
@@ -46,168 +64,110 @@ public abstract class BaseDbContext : DbContext
             
             if (typeof(IHasConcurrencyStamp).IsAssignableFrom(entityType.ClrType))
             {
-                builder.Entity(entityType.ClrType).Property(nameof(IHasConcurrencyStamp.ConcurrencyStamp))
+                builder.Entity(entityType.ClrType)
+                    .Property(nameof(IHasConcurrencyStamp.ConcurrencyStamp))
+                    .HasMaxLength(256)
+                    .IsRequired()
                     .IsConcurrencyToken();
             }
             
             if (typeof(ICreationAuditedObject).IsAssignableFrom(entityType.ClrType))
             {
-                builder.Entity(entityType.ClrType).Property(nameof(ICreationAuditedObject.CreationTime))
+                builder.Entity(entityType.ClrType).Property
+                        (nameof(ICreationAuditedObject.CreationTime))
                     .IsRequired();
                 
-                builder.Entity(entityType.ClrType).Property(nameof(ICreationAuditedObject.CreatorId))
-                    .HasMaxLength(100);
+                builder.Entity(entityType.ClrType)
+                    .Property(nameof(ICreationAuditedObject.CreatorId))
+                    .HasMaxLength(256)
+                    .IsRequired(false);
             }
             
             if (typeof(IAuditedObject).IsAssignableFrom(entityType.ClrType))
             {
-                builder.Entity(entityType.ClrType).Property(nameof(IAuditedObject.LastModificationTime))
+                builder.Entity(entityType.ClrType)
+                    .Property(nameof(IAuditedObject.LastModificationTime))
                     .IsRequired(false);
                 
-                builder.Entity(entityType.ClrType).Property(nameof(IAuditedObject.LastModifierId))
-                    .HasMaxLength(100).IsRequired(false);
+                builder.Entity(entityType.ClrType)
+                    .Property(nameof(IAuditedObject.LastModifierId))
+                    .HasMaxLength(256)
+                    .IsRequired(false);
             }
             
             if (typeof(IDeletionAuditedObject).IsAssignableFrom(entityType.ClrType))
             {
-                builder.Entity(entityType.ClrType).Property(nameof(IDeletionAuditedObject.DeletionTime))
+                builder.Entity(entityType.ClrType)
+                    .Property(nameof(IDeletionAuditedObject.DeletionTime))
                     .IsRequired(false);
                 
-                builder.Entity(entityType.ClrType).Property(nameof(IDeletionAuditedObject.DeleterId))
-                    .HasMaxLength(100).IsRequired(false);
+                builder.Entity(entityType.ClrType)
+                    .Property(nameof(IDeletionAuditedObject.DeleterId))
+                    .HasMaxLength(256)
+                    .IsRequired(false);
             }
-         
-            var entityClrType = entityType.ClrType;
-            var entityInterfaces = entityClrType.GetInterfaces();
-            var isIEntity = entityInterfaces.Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEntity<>));
-
-            if (isIEntity)
+            
+            if (typeof(IHasExtraProperties).IsAssignableFrom(entityType.ClrType))
             {
-                var idProperty = entityClrType.GetProperty("Id");
-                if (idProperty != null)
+                var comparer = new ValueComparer<ExtraPropertyDictionary>(
+                    (c1, c2) => c1.SequenceEqual(c2), 
+                    c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                    c => new ExtraPropertyDictionary(c));
+                
+                builder.Entity(entityType.ClrType)
+                    .Property(nameof(IHasExtraProperties.ExtraProperties))
+                    .HasConversion(new ExtraPropertyDictionaryConverter())
+                    .Metadata.SetValueComparer(comparer);
+                
+                switch (_settings.DatabaseProviderType)
                 {
-                    builder.Entity(entityClrType)
-                        .Property(idProperty.Name)
-                        .ValueGeneratedOnAdd();
+                    case DatabaseProviderTypes.SqlServer:
+                        builder.Entity(entityType.ClrType)
+                            .Property(nameof(IHasExtraProperties.ExtraProperties))
+                            .HasColumnType("nvarchar(max)");
+                        break;
+                    case DatabaseProviderTypes.PostgreSQL:
+                        builder.Entity(entityType.ClrType)
+                            .Property(nameof(IHasExtraProperties.ExtraProperties))
+                            .HasColumnType("json");
+                        break;
+                    case DatabaseProviderTypes.MySQL:
+                        builder.Entity(entityType.ClrType)
+                            .Property(nameof(IHasExtraProperties.ExtraProperties))
+                            .HasColumnType("json");
+                        break;
+                    case DatabaseProviderTypes.SQLite:
+                        builder.Entity(entityType.ClrType)
+                            .Property(nameof(IHasExtraProperties.ExtraProperties))
+                            .HasColumnType("text");
+                        break;
+                    case DatabaseProviderTypes.Oracle:
+                        builder.Entity(entityType.ClrType)
+                            .Property(nameof(IHasExtraProperties.ExtraProperties))
+                            .HasColumnType("text");
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
                 }
             }
         }
-
-        builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }
 
     public override int SaveChanges()
     {
-        SetCreationTimestamps();
-        SetModificationTimestamps();
-        SetSoftDelete();
-        DispatchDomainEvents().GetAwaiter();
-        var result = base.SaveChanges();
-        return result;
+        this.SetCreationTimestamps(_httpContextAccessor);
+        this.SetModificationTimestamps(_httpContextAccessor);
+        this.SetSoftDelete(_httpContextAccessor);
+        this.DispatchDomainEvents(_eventDispatcher).GetAwaiter();
+        return base.SaveChanges();
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        SetCreationTimestamps();
-        SetModificationTimestamps();
-        SetSoftDelete();
-        await DispatchDomainEvents();
-        var result = await base.SaveChangesAsync(cancellationToken);
-        return result;
-    }
-
-    #region Entity Creation Timestamps Methods
-
-    private void SetCreationTimestamps()
-    {
-        var entries = ChangeTracker.Entries()
-            .Where(e => e.Entity is ICreationAuditedObject && e.State == EntityState.Added);
-
-        foreach (var entry in entries)
-        {
-            var entity = (ICreationAuditedObject)entry.Entity;
-            entity.SetCreationTime();
-            entity.SetCreatorId(_httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-        }
-    }
-
-    #endregion
-
-    #region Entity Update Timestamps Methods
-
-    private void SetModificationTimestamps()
-    {
-        var entries = ChangeTracker.Entries()
-            .Where(e => e.State == EntityState.Modified);
-
-        foreach (var entry in entries)
-        {
-            if (entry.Entity is IAuditedObject)
-            {
-                var entity = (IAuditedObject)entry.Entity;
-                entity.SetLastModificationTime();
-                entity.SetLastModifierId(_httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            }
-
-            if (entry.Entity is IHasConcurrencyStamp)
-            {
-                var entity = (IHasConcurrencyStamp)entry.Entity;
-                entity.ConcurrencyStamp = Guid.NewGuid().ToString("N");
-            }
-        }
-    }
-
-    #endregion
-
-    #region Entity Soft Delete Methods
-
-    private void SetSoftDelete()
-    {
-        var entries = ChangeTracker.Entries()
-            .Where(e =>
-                e.Entity is IDeletionAuditedObject &&
-                e.State == EntityState.Modified &&
-                e.CurrentValues["IsDeleted"]!.Equals(true));
-
-        foreach (var entry in entries)
-        {
-            var entity = (IDeletionAuditedObject)entry.Entity;
-            entity.SetDeletionTime();
-            entity.SetDeleterId(_httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-        }
-    }
-
-    #endregion
-    
-    private async Task DispatchDomainEvents()
-    {
-        var domainEntities = ChangeTracker.Entries<BasicAggregateRoot>()
-            .Where(x => x.Entity.GetLocalEvents().Any() || x.Entity.GetDistributedEvents().Any())
-            .ToList();
-
-        foreach (var entityEntry in domainEntities)
-        {
-            var localDomainEvents = entityEntry.Entity.GetLocalEvents().ToList();
-            var distributedDomainEvents = entityEntry.Entity.GetDistributedEvents().ToList();
-
-            foreach (var domainEvent in localDomainEvents)
-            {
-                await PublishDomainEvent(domainEvent);
-            }
-            
-            entityEntry.Entity.ClearLocalEvents();
-            
-            foreach (var domainEvent in distributedDomainEvents)
-            {
-                await PublishDomainEvent(domainEvent);
-            }
-            
-            entityEntry.Entity.ClearDistributedEvents();
-        }
-    }
-    
-    protected virtual async Task PublishDomainEvent(DomainEventRecord domainEvent)
-    {
-        await _eventDispatcher.DispatchAsync(domainEvent.EventData);
+        this.SetCreationTimestamps(_httpContextAccessor);
+        this.SetModificationTimestamps(_httpContextAccessor);
+        this.SetSoftDelete(_httpContextAccessor);
+        await this.DispatchDomainEvents(_eventDispatcher);
+        return await base.SaveChangesAsync(cancellationToken);
     }
 }

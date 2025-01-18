@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore.Query;
-using SoftwareHospital.EntityFramework.Aggregates.Entities;
+using SoftwareHospital.EntityFramework.Core.Aggregates.Entities;
 using SoftwareHospital.EntityFramework.Models;
 
 namespace SoftwareHospital.EntityFramework.Repositories.Interface;
